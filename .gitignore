@@ -1,0 +1,42 @@
+# Django
+*.log
+*.pot
+*.pyc
+__pycache__/
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media
+staticfiles
+.env
+.env.*
+*.sqlite3
+*.pyo
+*.pyd
+*.db
+*.swp
+.DS_Store
+.idea/
+.vscode/
+*.egg-info/
+.eggs/
+dist/
+build/
+*.bak
+*.tmp
+*.orig
+*.coverage
+.coverage.*
+htmlcov/
+.tox/
+node_modules/
+
+# Django migrations
+**/migrations/*
+!**/migrations/__init__.py
+
+# VSCode
+.vscode/
+
+# macOS
+.DS_Store

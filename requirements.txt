@@ -3,4 +3,6 @@ SpeechRecognition
 pyttsx3
 edge-tts
 langdetect
-nest_asyncio 
+nest_asyncio
+django
+psycopg2-binary 

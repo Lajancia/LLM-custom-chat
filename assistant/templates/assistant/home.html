@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Neo AI Assistant chatting</title>
+		<style>
+			body {
+				font-family: 'Arial', sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 20px;
+				background-color: #f5f5f5;
+			}
+			.chat-container {
+				background: white;
+				border-radius: 10px;
+				padding: 20px;
+				box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+				margin-bottom: 20px;
+			}
+			.chat-messages {
+				height: 400px;
+				overflow-y: auto;
+				border: 1px solid #ddd;
+				padding: 10px;
+				margin-bottom: 20px;
+				background-color: #fafafa;
+			}
+			.message {
+				margin-bottom: 10px;
+				padding: 10px;
+				border-radius: 5px;
+			}
+			.user-message {
+				background-color: #007bff;
+				color: white;
+				text-align: right;
+			}
+			.ai-message {
+				background-color: #e9ecef;
+				color: #333;
+			}
+			.input-container {
+				display: flex;
+				gap: 10px;
+			}
+			#message-input {
+				flex: 1;
+				padding: 10px;
+				border: 1px solid #ddd;
+				border-radius: 5px;
+			}
+			button {
+				padding: 10px 20px;
+				background-color: #007bff;
+				color: white;
+				border: none;
+				border-radius: 5px;
+				cursor: pointer;
+			}
+			button:hover {
+				background-color: #0056b3;
+			}
+			.history-container {
+				background: white;
+				border-radius: 10px;
+				padding: 20px;
+				box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+			}
+			.history-item {
+				border-bottom: 1px solid #eee;
+				padding: 10px 0;
+			}
+			.history-item:last-child {
+				border-bottom: none;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>🤖 Neo AI Assistant</h1>
+
+		<div class="chat-container">
+			<h2>실시간 채팅</h2>
+			<div id="chat-messages" class="chat-messages">
+				<div class="message ai-message">
+					안녕하세요! 저는 Neo입니다. 무엇을 도와드릴까요?
+				</div>
+			</div>
+			<div class="input-container">
+				<input
+					type="text"
+					id="message-input"
+					placeholder="메시지를 입력하세요..."
+					onkeypress="handleKeyPress(event)"
+				/>
+				<button onclick="sendMessage()">전송</button>
+			</div>
+		</div>
+
+		<div class="history-container">
+			<h2>대화 기록</h2>
+			<button onclick="loadHistory()">기록 새로고침</button>
+			<div id="history-list"></div>
+		</div>
+
+		<script>
+			function handleKeyPress(event) {
+				if (event.key === 'Enter') {
+					sendMessage();
+				}
+			}
+
+			function sendMessage() {
+				const input = document.getElementById('message-input');
+				const message = input.value.trim();
+
+				if (!message) return;
+
+				// 사용자 메시지 표시
+				addMessage(message, 'user');
+				input.value = '';
+
+				// API 호출
+				fetch('/assistant/api/chat/', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ message: message }),
+				})
+					.then((response) => response.json())
+					.then((data) => {
+						if (data.error) {
+							addMessage('오류: ' + data.error, 'ai');
+						} else {
+							addMessage(data.response, 'ai');
+						}
+					})
+					.catch((error) => {
+						addMessage('네트워크 오류가 발생했습니다.', 'ai');
+						console.error('Error:', error);
+					});
+			}
+
+			function addMessage(text, sender) {
+				const messagesDiv = document.getElementById('chat-messages');
+				const messageDiv = document.createElement('div');
+				messageDiv.className = `message ${sender}-message`;
+				messageDiv.textContent = text;
+				messagesDiv.appendChild(messageDiv);
+				messagesDiv.scrollTop = messagesDiv.scrollHeight;
+			}
+
+			function loadHistory() {
+				fetch('/assistant/api/history/')
+					.then((response) => response.json())
+					.then((data) => {
+						const historyDiv = document.getElementById('history-list');
+						historyDiv.innerHTML = '';
+
+						data.conversations.forEach((conv) => {
+							const itemDiv = document.createElement('div');
+							itemDiv.className = 'history-item';
+							itemDiv.innerHTML = `
+                        <strong>사용자:</strong> ${conv.user_input}<br>
+                        <strong>Neo:</strong> ${conv.ai_response}<br>
+                        <small>${new Date(
+													conv.timestamp
+												).toLocaleString()}</small>
+                    `;
+							historyDiv.appendChild(itemDiv);
+						});
+					})
+					.catch((error) => {
+						console.error('Error loading history:', error);
+					});
+			}
+
+			// 페이지 로드 시 대화 기록 불러오기
+			window.onload = function () {
+				loadHistory();
+			};
+		</script>
+	</body>
+</html>
