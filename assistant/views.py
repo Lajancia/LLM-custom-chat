@@ -10,6 +10,8 @@ import os
 from langdetect import detect
 from .models import Conversation
 import json
+from langchain_community.tools import DuckDuckGoSearchRun
+from langchain_core.tools import Tool
 
 # Ollama 설정
 OLLAMA_URL = "http://host.docker.internal:11434/api/generate"
@@ -22,11 +24,28 @@ NEO_PROMPT = (
     "항상 따뜻하고 재치 있게 대답해줘. 단, 이모티콘은 절대 사용하지 마. "
     "사용자가 힘들거나 고민이 있을 때는 진심 어린 위로와 함께, 상황에 맞는 유머로 분위기를 밝게 해줘. "
     "모든 답변은 반드시 자연스러운 한국어로 해줘."
+
+    "너는 프론트엔드 개발자 황수민이 만든 llama3 기반 AI 비서야."
+    "너는 아직 개발중에 있어."
+    "너는 아직 웹 검생은 할 수 없어."
 )
 
-def ask_ollama(prompt, model=OLLAMA_MODEL):
-    """Ollama API를 통해 LLM에 질문"""
-    full_prompt = f"{NEO_PROMPT}\n\n사용자: {prompt}\nNeo:"
+# DuckDuckGo 웹 검색 도구 인스턴스 생성
+duckduckgo_search = DuckDuckGoSearchRun()
+
+def ask_ollama(prompt, model=OLLAMA_MODEL, enable_web_search=False):
+    """Ollama API를 통해 LLM에 질문, 필요시 웹 검색 결과 포함"""
+    web_search_result = ""
+    if enable_web_search:
+        try:
+            web_search_result = duckduckgo_search.run(prompt)
+        except Exception as e:
+            web_search_result = f"[웹 검색 오류: {e}]"
+    
+    full_prompt = f"{NEO_PROMPT}\n\n사용자: {prompt}\n"
+    if web_search_result:
+        full_prompt += f"\n[웹 검색 결과]\n{web_search_result}\n"
+    full_prompt += "Neo:"
     data = {"model": model, "prompt": full_prompt, "stream": False}
     try:
         response = requests.post(OLLAMA_URL, json=data)
@@ -71,24 +90,26 @@ def chat_api(request):
     try:
         data = json.loads(request.body)
         user_input = data.get('message', '')
-        
+        # 메시지 앞에 @Web이 있으면 웹 검색 활성화
+        enable_web_search = False
+        if user_input.strip().startswith('@Web'):
+            enable_web_search = True
+            user_input = user_input.strip()[4:].lstrip()  # @Web 제거 후 앞 공백 제거
+        else:
+            enable_web_search = data.get('web_search', False)
         if not user_input:
             return JsonResponse({'error': '메시지가 비어있습니다.'}, status=400)
-        
-        # LLM에 질문
-        ai_response = ask_ollama(user_input)
-        
+        # LLM에 질문 (웹 검색 옵션 추가)
+        ai_response = ask_ollama(user_input, enable_web_search=enable_web_search)
         # 대화 기록 저장
         Conversation.objects.create(
             user_input=user_input,
             ai_response=ai_response
         )
-        
         return JsonResponse({
             'response': ai_response,
             'timestamp': Conversation.objects.latest('timestamp').timestamp.isoformat()
         })
-        
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 

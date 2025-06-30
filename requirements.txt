@@ -5,4 +5,6 @@ edge-tts
 langdetect
 nest_asyncio
 django
-psycopg2-binary 
+psycopg2-binary
+langchain-community
+duckduckgo-search
