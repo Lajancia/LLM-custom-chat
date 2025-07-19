@@ -77,10 +77,10 @@ WSGI_APPLICATION = 'mysite.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DJANGO_DB_NAME', 'mydb'),
-        'USER': os.environ.get('DJANGO_DB_USER', 'myuser'),
-        'PASSWORD': os.environ.get('DJANGO_DB_PASSWORD', 'mypassword'),
-        'HOST': os.environ.get('DJANGO_DB_HOST', 'db'),
+        'NAME': 'mydb',
+        'USER': 'myuser',
+        'PASSWORD': 'mypassword',
+        'HOST': 'localhost',  # 중요! Docker가 아닌 로컬에서 접근할 때는 localhost
         'PORT': '5432',
     }
 }

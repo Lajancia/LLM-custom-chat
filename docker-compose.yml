@@ -12,22 +12,40 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  web:
-    build: .
-    command: python manage.py runserver 0.0.0.0:8000
-    volumes:
-      - .:/app
-    ports:
-      - '8000:8000'
-    depends_on:
-      - db
-    environment:
-      - DJANGO_DB_HOST=db
-      - DJANGO_DB_NAME=mydb
-      - DJANGO_DB_USER=myuser
-      - DJANGO_DB_PASSWORD=mypassword
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   ports:
+  #     - '11434:11434'
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   # Ollama 컨테이너가 뜨자마자 모델을 pull 하도록 entrypoint 지정
+  #   entrypoint: >
+  #     sh -c "ollama serve & sleep 3 && ollama pull llama3.1:8b && wait"
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '2.0'
+  #         memory: 4G
+
+  # web:
+  #   build: .
+  #   command: python manage.py runserver 0.0.0.0:8000
+  #   volumes:
+  #     - .:/app
+  #   ports:
+  #     - '8000:8000'
+  #   depends_on:
+  #     - db
+  #     - ollama
+
+  #   environment:
+  #     - OLLAMA_URL=http://ollama:11434
+  #     - ACCUWEATHER_API_KEY=UUOVOxCqG1S0tj6vdiPlbHSyIsUrcgDN
+  #     - DJANGO_DB_HOST=db
+  #     - DJANGO_DB_NAME=mydb
+  #     - DJANGO_DB_USER=myuser
+  #     - DJANGO_DB_PASSWORD=mypassword
 
 volumes:
   postgres_data:
+  # ollama_data:

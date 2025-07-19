@@ -1,0 +1,22 @@
+{
+	"models": [
+		{
+			"title": "llama3.1:8b",
+			"provider": "ollama",
+			"model": "llama3.1:8b",
+			"default": true,
+			"base_url": "http://ollama:11434"
+		}
+	],
+	"mcpServers": {
+		"weather": {
+			"command": "npx",
+			"args": ["-y", "@timlukahorstmann/mcp-weather"]
+		},
+		"ddg-search": {
+			"command": "npx",
+			"args": ["-y", "duckduckgo-mcp-server"],
+			"transport": "stdio"
+		}
+	}
+}

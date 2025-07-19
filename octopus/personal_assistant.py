@@ -1,14 +1,11 @@
 import requests
 import speech_recognition as sr
-import pyttsx3
-import platform
-import importlib.util
 import os
 import asyncio
 import edge_tts
 from langdetect import detect
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_URL = "http://ollama:11434/api/generate"
 OLLAMA_MODEL = "llama3"  # 현재 사용 중인 모델명으로 변경
 
 # TTS_MODE: 'pyttsx3', 'say', 'coqui' 중 선택. 'auto'는 자동 감지
