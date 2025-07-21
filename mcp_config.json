@@ -9,6 +9,10 @@
 		}
 	],
 	"mcpServers": {
+		"search-stock-news-mcp": {
+			"command": "npx",
+			"args": ["-y", "search-stock-news-mcp@latest"]
+		},
 		"weather": {
 			"command": "npx",
 			"args": ["-y", "@timlukahorstmann/mcp-weather"]

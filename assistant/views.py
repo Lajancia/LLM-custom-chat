@@ -4,13 +4,13 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 import asyncio
 import json
-import re
 import subprocess
 from datetime import date
 from pathlib import Path
 from dolphin_mcp import run_interaction
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 
 DEFAULT_LOCATION = "Seoul, South Korea"
