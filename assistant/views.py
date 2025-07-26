@@ -10,6 +10,8 @@ from pathlib import Path
 from dolphin_mcp import run_interaction
 import os
 from dotenv import load_dotenv
+import requests
+from langdetect import detect
 
 load_dotenv()
 
@@ -22,7 +24,7 @@ MCP_CFG = json.loads(CONFIG_PATH.read_text())["mcpServers"]
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 NOTION_PARENT_PAGE_ID= os.getenv("NOTION_PARENT_PAGE_ID")
 # Ollama 설정
-OLLAMA_URL = "http://host.docker.internal:11434/api/generate"
+OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3"
 
 # In-memory chat history (for current process only)
@@ -102,18 +104,9 @@ async def chat_once(user_input):
     system_preface = (
         f"[System] Today's date is {today}. Your default location is {DEFAULT_LOCATION}. "
         "You're name is Neo"
-        "If use ask with korean, answer in korean."
         "Whenever I ask about the weather, you can assume that's my location."
         "Whenever I ask questions related to today's date, you can assume it's today's date is {today}."
-        "Whenever I ask in Korean, you should translate it into English and answer in Korean."
-        f"""
-        the parent parameter is 1ecdeb8e405c801abe9ff1735550e9ae. you must use this if you need it.
-        if you receive a request to create a Notion page, the query should be in the following format:
-        {{"parent": {{"page_id": "1ecdeb8e405c801abe9ff1735550e9ae"}}, "properties": {{"title": [{{"text": {{"content": "제목"}}}}]}}, "children": [{{"object": "block", "type": "paragraph", "paragraph": {{"rich_text": [{{"type": "text", "text": {{"content": "내용"}}}}]}}}}]}}
 
-        example: {{"parent": {{"page_id": "1ecdeb8e405c801abe9ff1735550e9ae"}}, "properties": {{"title": [{{"text": {{"content": "2027년 7월 6일"}}}}]}}, "children": [{{"object": "block", "type": "paragraph", "paragraph": {{"rich_text": [{{"type": "text", "text": {{"content": "MCP (Model Context Protocol)는 AI 모델과 외부 도구 간의 표준화된 통신 프로토콜입니다..."}}}}]}}}}]}}
-        Use this format to create a Notion page when tool_call.
-        """
     )
     combined_query = system_preface + "\n\n" + user_input + "translate in to English"
     raw = await run_interaction(
@@ -126,23 +119,82 @@ async def chat_once(user_input):
         result = json.loads(raw) if isinstance(raw, str) else raw
     except json.JSONDecodeError:
         return raw or ""
-    # Handle chained tool calls (single chain)
+    # Handle multiple tool calls
     if isinstance(result, dict) and result.get("tool_call"):
-        tc = result["tool_call"]
-        tool_out = await call_tool(tc)
-        # Feed the tool result back to Llama
-        raw = await run_interaction(
-            user_query=f"Tool result: {tool_out}",
-            model_name="llama3.1:8b",
-            config_path=str(CONFIG_PATH),
-            quiet_mode=False,
-        )
-        try:
-            result = json.loads(raw) if isinstance(raw, str) else raw
-        except json.JSONDecodeError:
-            result = raw
+        tool_calls = result["tool_call"]
+        if isinstance(tool_calls, list):
+            tool_results = []
+            for tc in tool_calls:
+                tool_out = await call_tool(tc)
+                tool_results.append(tool_out)
+            # Feed all tool results back to Llama
+            tool_results_text = "\n".join(f"Tool result {i+1}: {r}" for i, r in enumerate(tool_results))
+            raw = await run_interaction(
+                user_query=tool_results_text,
+                model_name="llama3.1:8b",
+                config_path=str(CONFIG_PATH),
+                quiet_mode=False,
+            )
+            try:
+                result = json.loads(raw) if isinstance(raw, str) else raw
+            except json.JSONDecodeError:
+                result = raw
+        else:
+            tc = tool_calls
+            tool_out = await call_tool(tc)
+            # Feed the tool result back to Llama
+            raw = await run_interaction(
+                user_query=f"Tool result: {tool_out}",
+                model_name="llama3.1:8b",
+                config_path=str(CONFIG_PATH),
+                quiet_mode=False,
+            )
+            try:
+                result = json.loads(raw) if isinstance(raw, str) else raw
+            except json.JSONDecodeError:
+                result = raw
     final = result.get("response") if isinstance(result, dict) else result
     return final or ""
+
+def ollama_translate(text, target_lang):
+    """
+    Use Ollama to translate text to the target language ('en' or 'ko').
+    """
+    if not text or not text.strip():
+        print("[DEBUG] No text to translate.")
+        return ""
+    # 텍스트 전처리
+    text = text.strip().strip('\"').replace('\\n', '\n')
+    if target_lang == 'en':
+        prompt = f"Please translate the following content into English:\n\n{text}\n\nEnglish:"
+    else:
+        prompt = f"다음 영어 문장을 자연스러운 한국어로 번역해 주세요:\n\n{text}\n\n번역:"
+    data = {"model": OLLAMA_MODEL, "prompt": prompt, "stream": False}
+    try:
+        response = requests.post(OLLAMA_URL, json=data)
+        response.raise_for_status()
+        return response.json().get("response", "")
+    except Exception as e:
+        return f"[Translation Error] {e}"
+
+# Ollama LLM 직접 호출 함수
+NEO_PROMPT = (
+    "너의 이름은 Neo야."
+)
+def ask_ollama(prompt, model=OLLAMA_MODEL):
+    full_prompt = f"{NEO_PROMPT}\n\n사용자: {prompt}\nNeo:"
+    data = {"model": model, "prompt": full_prompt, "stream": False}
+    try:
+        response = requests.post(OLLAMA_URL, json=data)
+        response.raise_for_status()
+        return response.json().get("response", "답변을 가져오지 못했습니다.")
+    except Exception as e:
+        return f"Ollama와 통신 중 오류 발생: {e}"
+
+# 정보성 질문 키워드 기반 분류
+INFO_KEYWORDS = ["날씨", "주식", "증시", "검색", "뉴스", "환율", "ETF", "코스피", "코스닥", "S&P", "QQQ", "VOO"]
+def is_info_query(user_input):
+    return any(keyword in user_input for keyword in INFO_KEYWORDS)
 
 @csrf_exempt    
 @require_http_methods(["POST"])
@@ -152,15 +204,36 @@ def chat_api(request):
         data = json.loads(request.body)
         user_input = data.get('message', '')
         print("user_input", user_input)
-        ai_response = asyncio.run(chat_once(user_input))
+        # Always translate input to English
+        user_input_en = ollama_translate(user_input, 'en')
+        print(f"[DEBUG] Translated input to English: {user_input_en}")
+        if is_info_query(user_input):
+            # 정보성 질문: MCP tool_call 활용
+            ai_response = asyncio.run(chat_once(user_input_en))
+        else:
+            # 일반 대화: Ollama LLM만 사용
+            ai_response = ask_ollama(user_input_en)
+        print(f"[DEBUG] AI response (English): {ai_response!r}")
+        if not ai_response or not str(ai_response).strip():
+            ai_response = "[오류] AI가 답변을 생성하지 못했습니다."
+        # Always translate response to Korean
+        ai_response_ko = ollama_translate(ai_response, 'ko')
+        print(f"[DEBUG] Translated response to Korean: {ai_response_ko}")
+        # Remove 'Here is the translation:' and similar phrases
+        for prefix in [
+            "Here is the translation:", "Here is the translation of the text to Korean:",
+            "다음은 번역입니다:", "아래는 번역입니다:", "Here is your translation:", "번역:"
+        ]:
+            if ai_response_ko.strip().startswith(prefix):
+                ai_response_ko = ai_response_ko.strip()[len(prefix):].lstrip()
         # Save to in-memory chat history
         CHAT_HISTORY.insert(0, {
             'user_input': user_input,
-            'ai_response': ai_response,
+            'ai_response': ai_response_ko,
             'timestamp': date.today().isoformat()
         })
         del CHAT_HISTORY[50:]
-        return JsonResponse({'response': ai_response})
+        return JsonResponse({'response': ai_response_ko})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
